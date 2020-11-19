@@ -2,7 +2,7 @@
 using System;
 using System.ComponentModel;
 using System.Net;
-using System.Net.Sockets;
+using WebSocket4Net;
 using System.Threading;
 
 namespace Pomelo.DotNetClient
@@ -42,13 +42,17 @@ namespace Pomelo.DotNetClient
         private NetWorkState netWorkState = NetWorkState.CLOSED;   //current network state
 
         private EventManager eventManager;
-        private Socket socket;
+        private WebSocket socket;
         private Protocol protocol;
         private bool disposed = false;
         private uint reqId = 1;
+        private const string ARRAY_FLAG = "[";
+        private const string URL_HEADER = "ws://";
 
         private ManualResetEvent timeoutEvent = new ManualResetEvent(false);
         private int timeoutMSec = 8000;    //connect timeout count in millisecond
+
+        Action callback;
 
         public PomeloClient()
         {
@@ -62,64 +66,21 @@ namespace Pomelo.DotNetClient
         /// <param name="callback">socket successfully connected callback(in network thread)</param>
         public void initClient(string host, int port, Action callback = null)
         {
+            this.callback = callback;
+
             timeoutEvent.Reset();
             eventManager = new EventManager();
             NetWorkChanged(NetWorkState.CONNECTING);
 
-            IPAddress ipAddress = null;
+            this.socket = new WebSocket(URL_HEADER+host + ":" + port);
 
-            try
-            {
-                IPAddress[] addresses = Dns.GetHostEntry(host).AddressList;
-                foreach (var item in addresses)
-                {
-                    if (item.AddressFamily == AddressFamily.InterNetwork)
-                    {
-                        ipAddress = item;
-                        break;
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                NetWorkChanged(NetWorkState.ERROR);
-                return;
-            }
+            this.socket.Opened += this.SocketOpened;
+            //this.socket.MessageReceived += this.SocketMessage;
+            this.socket.DataReceived += this.DataMessage;
+            this.socket.Closed += this.SocketConnectionClosed;
+            this.socket.Error += this.SocketError;
 
-            if (ipAddress == null)
-            {
-                throw new Exception("can not parse host : " + host);
-            }
-
-            this.socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            IPEndPoint ie = new IPEndPoint(ipAddress, port);
-
-            socket.BeginConnect(ie, new AsyncCallback((result) =>
-            {
-                try
-                {
-                    this.socket.EndConnect(result);
-                    this.protocol = new Protocol(this, this.socket);
-                    NetWorkChanged(NetWorkState.CONNECTED);
-
-                    if (callback != null)
-                    {
-                        callback();
-                    }
-                }
-                catch (SocketException e)
-                {
-                    if (netWorkState != NetWorkState.TIMEOUT)
-                    {
-                        NetWorkChanged(NetWorkState.ERROR);
-                    }
-                    Dispose();
-                }
-                finally
-                {
-                    timeoutEvent.Set();
-                }
-            }), this.socket);
+            this.socket.Open();
 
             if (timeoutEvent.WaitOne(timeoutMSec, false))
             {
@@ -247,9 +208,17 @@ namespace Pomelo.DotNetClient
 
                 try
                 {
-                    this.socket.Shutdown(SocketShutdown.Both);
-                    this.socket.Close();
-                    this.socket = null;
+                    if (this.socket != null)
+                    {
+                        this.socket.Opened -= this.SocketOpened;
+                        //this.socket.MessageReceived -= this.SocketMessage;
+                        this.socket.DataReceived -= this.DataMessage;
+                        this.socket.Closed -= this.SocketConnectionClosed;
+                        this.socket.Error -= this.SocketError;
+                        this.socket.Close();
+
+                        this.socket = null;
+                    }
                 }
                 catch (Exception)
                 {
@@ -258,6 +227,60 @@ namespace Pomelo.DotNetClient
 
                 this.disposed = true;
             }
+        }
+
+        private void SocketOpened(object sender, EventArgs e)
+        {
+            this.protocol = new Protocol(this, this.socket);
+            NetWorkChanged(NetWorkState.CONNECTED);
+
+            this.callback?.Invoke();
+
+            timeoutEvent.Set();
+        }
+
+        private void DataMessage(object sender, DataReceivedEventArgs e)
+        {
+            if (e != null)
+            {
+                if (netWorkState != NetWorkState.CONNECTED)
+                    return;
+
+                if (e.Data.Length > 0)
+                {
+                    this.protocol.processBytes(e.Data, 0, e.Data.Length);
+                }
+                else
+                {
+                    disconnect();
+                }
+            }
+        }
+
+        //Connetction close event.
+        private void SocketConnectionClosed(object sender, EventArgs e)
+        {
+            Console.WriteLine("WebSocketConnection was terminated!");
+            Console.WriteLine(e.ToString());
+
+            if (netWorkState != NetWorkState.TIMEOUT)
+            {
+                NetWorkChanged(NetWorkState.CLOSED);
+            }
+            Dispose();
+        }
+
+        //Connection error event.
+        private void SocketError(object sender, EventArgs e)
+        {
+            Console.WriteLine("socket client error:");
+            Console.WriteLine(e.ToString());
+
+            if (netWorkState != NetWorkState.TIMEOUT)
+            {
+                NetWorkChanged(NetWorkState.ERROR);
+            }
+            Dispose();
         }
     }
 }

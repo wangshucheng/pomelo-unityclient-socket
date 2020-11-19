@@ -25,40 +25,34 @@ namespace Pomelo.DotNetClient.Test
                     Console.WriteLine("on data back" + data.ToString());
                     JsonObject msg = new JsonObject();
                     msg["uid"] = 111;
-                    pc.request("gate.gateHandler.queryEntry", msg, OnQuery);
+                    pc.request("auth.authHandler.test", msg, OnQuery);
                 });
+            });
+
+            pc.on("TEST_PUSH", (result) =>
+            {
+                Console.WriteLine(result.ToString());
             });
         }
 
         public static void OnQuery(JsonObject result)
         {
-            if (Convert.ToInt32(result["code"]) == 200)
+            Console.WriteLine("on data back2" + result.ToString());
+            if (Convert.ToInt32(result["code"]) == 0)
             {
-                pc.disconnect();
+                //JsonObject msg = new JsonObject();
+                //msg["uid"] = 111;
+                //msg["token"] = "123";
+                //pc.request("connector.loginHandler.login", msg, (data) =>
+                //{
+                //    Console.WriteLine("on data back3" + result.ToString());
+                //});
 
-                string host = (string)result["host"];
-                int port = Convert.ToInt32(result["port"]);
-                pc = new PomeloClient();
-
-                pc.NetWorkStateChangedEvent += (state) =>
+                JsonObject msg = new JsonObject();
+                msg["clientData"] = "testpush";
+                pc.request("test.authHandler.testPush", msg, (data) =>
                 {
-                    Console.WriteLine(state);
-                };
-
-                pc.initClient(host, port, () =>
-                {
-                    pc.connect(null, (data) =>
-                    {
-                        JsonObject userMessage = new JsonObject();
-                        Console.WriteLine("on connect to connector!");
-
-                        //Login
-                        JsonObject msg = new JsonObject();
-                        msg["username"] = "test";
-                        msg["rid"] = "pomelo";
-
-                        pc.request("connector.entryHandler.enter", msg, OnEnter);
-                    });
+                    Console.WriteLine("on data back3" + result.ToString());
                 });
             }
         }
@@ -75,8 +69,8 @@ namespace Pomelo.DotNetClient.Test
 
         public static void Run()
         {
-            string host = "192.168.0.156";
-            int port = 3014;
+            string host = "8.129.45.102";
+            int port = 7002;
 
             loginTest(host, port);
         }

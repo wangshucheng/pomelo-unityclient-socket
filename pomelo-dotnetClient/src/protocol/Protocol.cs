@@ -18,7 +18,7 @@ namespace Pomelo.DotNetClient
             return this.pc;
         }
 
-        public Protocol(PomeloClient pc, System.Net.Sockets.Socket socket)
+        public Protocol(PomeloClient pc, WebSocket4Net.WebSocket socket)
         {
             this.pc = pc;
             this.transporter = new Transporter(socket, this.processMessage);
@@ -172,6 +172,11 @@ namespace Pomelo.DotNetClient
             if (heartBeatService != null) heartBeatService.stop();
 
             this.state = ProtocolState.closed;
+        }
+
+        internal void processBytes(byte[] data, int offset, int length)
+        {
+            this.transporter.processBytes(data, offset, length);
         }
     }
 }

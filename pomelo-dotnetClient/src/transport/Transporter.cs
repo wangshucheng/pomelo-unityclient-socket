@@ -1,5 +1,5 @@
 using System;
-using System.Net.Sockets;
+using WebSocket4Net;
 
 namespace Pomelo.DotNetClient
 {
@@ -13,7 +13,7 @@ namespace Pomelo.DotNetClient
     {
         public const int HeadLength = 4;
 
-        private Socket socket;
+        private WebSocket socket;
         private Action<byte[]> messageProcesser;
 
         //Used for get message
@@ -32,7 +32,7 @@ namespace Pomelo.DotNetClient
         //private TransportQueue<byte[]> _receiveQueue = new TransportQueue<byte[]>();
         private System.Object _lock = new System.Object();
 
-        public Transporter(Socket socket, Action<byte[]> processer)
+        public Transporter(WebSocket socket, Action<byte[]> processer)
         {
             this.socket = socket;
             this.messageProcesser = processer;
@@ -41,7 +41,7 @@ namespace Pomelo.DotNetClient
 
         public void start()
         {
-            this.receive();
+            //this.receive();
         }
 
         public void send(byte[] buffer)
@@ -54,7 +54,8 @@ namespace Pomelo.DotNetClient
                 //    str += code.ToString();
                 //}
                 //Console.WriteLine("send:" + buffer.Length + " " + str.Length + "  " + str);
-                this.asyncSend = socket.BeginSend(buffer, 0, buffer.Length, SocketFlags.None, new AsyncCallback(sendCallback), socket);
+                //this.asyncSend = socket.BeginSend(buffer, 0, buffer.Length, SocketFlags.None, new AsyncCallback(sendCallback), socket);
+                this.socket.Send(buffer, 0, buffer.Length);
 
                 this.onSending = true;
             }
@@ -64,16 +65,16 @@ namespace Pomelo.DotNetClient
         {
             //UnityEngine.Debug.Log("sendCallback " + this.transportState);
             if (this.transportState == TransportState.closed) return;
-            socket.EndSend(asyncSend);
+            //socket.EndSend(asyncSend);
             this.onSending = false;
         }
 
-        public void receive()
-        {
-            //Console.WriteLine("receive state : {0}, {1}", this.transportState, socket.Available);
-            this.asyncReceive = socket.BeginReceive(stateObject.buffer, 0, stateObject.buffer.Length, SocketFlags.None, new AsyncCallback(endReceive), stateObject);
-            this.onReceiving = true;
-        }
+        //public void receive()
+        //{
+        //    //Console.WriteLine("receive state : {0}, {1}", this.transportState, socket.Available);
+        //    this.asyncReceive = socket.BeginReceive(stateObject.buffer, 0, stateObject.buffer.Length, SocketFlags.None, new AsyncCallback(endReceive), stateObject);
+        //    this.onReceiving = true;
+        //}
 
         internal void close()
         {
@@ -86,37 +87,37 @@ namespace Pomelo.DotNetClient
             }*/
         }
 
-        private void endReceive(IAsyncResult asyncReceive)
-        {
-            if (this.transportState == TransportState.closed)
-                return;
-            StateObject state = (StateObject)asyncReceive.AsyncState;
-            Socket socket = this.socket;
+        //private void endReceive(IAsyncResult asyncReceive)
+        //{
+        //    if (this.transportState == TransportState.closed)
+        //        return;
+        //    StateObject state = (StateObject)asyncReceive.AsyncState;
+        //    WebSocket socket = this.socket;
 
-            try
-            {
-                int length = socket.EndReceive(asyncReceive);
+        //    try
+        //    {
+        //        int length = socket.EndReceive(asyncReceive);
 
-                this.onReceiving = false;
+        //        this.onReceiving = false;
 
-                if (length > 0)
-                {
-                    processBytes(state.buffer, 0, length);
-                    //Receive next message
-                    if (this.transportState != TransportState.closed) receive();
-                }
-                else
-                {
-                    if (this.onDisconnect != null) this.onDisconnect();
-                }
+        //        if (length > 0)
+        //        {
+        //            processBytes(state.buffer, 0, length);
+        //            //Receive next message
+        //            if (this.transportState != TransportState.closed) receive();
+        //        }
+        //        else
+        //        {
+        //            if (this.onDisconnect != null) this.onDisconnect();
+        //        }
 
-            }
-            catch (System.Net.Sockets.SocketException)
-            {
-                if (this.onDisconnect != null)
-                    this.onDisconnect();
-            }
-        }
+        //    }
+        //    catch (System.Net.Sockets.SocketException)
+        //    {
+        //        if (this.onDisconnect != null)
+        //            this.onDisconnect();
+        //    }
+        //}
 
         internal void processBytes(byte[] bytes, int offset, int limit)
         {
