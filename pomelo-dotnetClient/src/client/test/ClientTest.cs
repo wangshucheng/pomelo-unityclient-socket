@@ -50,7 +50,7 @@ namespace Pomelo.DotNetClient.Test
 
                 JsonObject msg = new JsonObject();
                 msg["clientData"] = "testpush";
-                pc.request("test.authHandler.testPush", msg, (data) =>
+                pc.request("auth.authHandler.testPush", msg, (data) =>
                 {
                     Console.WriteLine("on data back3" + result.ToString());
                 });
